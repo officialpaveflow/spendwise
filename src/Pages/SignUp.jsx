@@ -414,7 +414,7 @@ export default function SignUpPage() {
                 <span className="text-xl font-bold bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent tracking-tight">
                   SpendSolo
                 </span>
-                <span className="text-xs text-gray-400">Clerk + Supabase</span>
+                
               </div>
             </div>
 
