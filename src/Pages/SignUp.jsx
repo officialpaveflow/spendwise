@@ -896,15 +896,7 @@ export default function SignUpPage() {
 
                 {/* Tech stack info */}
                 <div className="flex items-center justify-center gap-4 mb-8">
-                  <div className="px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">
-                    Clerk Auth
-                  </div>
-                  <div className="px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 text-sm">
-                    Supabase DB
-                  </div>
-                  <div className="px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-sm">
-                    React 18
-                  </div>
+                  
                 </div>
 
                 {/* Stats */}
