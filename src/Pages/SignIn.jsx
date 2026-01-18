@@ -265,18 +265,13 @@ export default function SignIn() {
                 <span className="text-xl font-bold bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent tracking-tight">
                   SpendSolo
                 </span>
-                <span className="text-[10px] text-emerald-400 font-medium tracking-wider">SIGN IN</span>
+                
               </div>
             </div>
 
             {/* Mobile menu button and navigation */}
             <div className="flex items-center gap-4">
-              <Link
-                to="/signup"
-                className="text-sm font-medium text-emerald-300 hover:text-emerald-200 transition-colors"
-              >
-                Sign Up
-              </Link>
+              
               
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -344,9 +339,7 @@ export default function SignIn() {
             <div className="hidden lg:block text-center mb-8">
               <div className="flex items-center justify-center gap-3 mb-6">
                 <div className="relative">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 flex items-center justify-center">
-                    <Sparkles className="w-8 h-8 text-white" />
-                  </div>
+                  
                   <div className="absolute -inset-2 bg-gradient-to-r from-emerald-500/40 to-teal-400/40 rounded-2xl blur-xl -z-10"></div>
                 </div>
               </div>
