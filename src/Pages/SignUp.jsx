@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSignUp, useClerk } from "@clerk/clerk-react";
-import { supabase } from "../lib/supabase"; // Import Supabase client
+import { supabase } from "../lib/supabase";
 
 export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -40,7 +40,6 @@ export default function SignUpPage() {
   const [clerkStatus, setClerkStatus] = useState("");
   const [supabaseStatus, setSupabaseStatus] = useState("");
 
-  // Initialize Clerk hooks
   const { isLoaded, signUp, setActive } = useSignUp();
   const clerk = useClerk();
   const navigate = useNavigate();
@@ -58,7 +57,7 @@ export default function SignUpPage() {
     // Check Supabase connection
     const checkSupabase = async () => {
       try {
-        const { data, error } = await supabase.from('profiles').select('count').limit(1);
+        const { data, error } = await supabase.from('users').select('count').limit(1);
         if (error) {
           console.error("Supabase connection error:", error);
           setSupabaseStatus(`Supabase: Error - ${error.message}`);
@@ -93,35 +92,98 @@ export default function SignUpPage() {
     return () => clearTimeout(timer);
   }, [resendTimer]);
 
-  // Create user profile in Supabase after successful Clerk signup
-  const createSupabaseProfile = async (userId, userData) => {
+  // Create user in Supabase
+  const createSupabaseUser = async (clerkUserId, userData) => {
     try {
-      console.log("Creating Supabase profile for user:", userId);
+      console.log("Creating Supabase user for Clerk user:", clerkUserId);
       
       const { data, error } = await supabase
-        .from('profiles')
+        .from('users')
         .insert([
           {
-            id: userId,
-            full_name: userData.name,
+            clerk_user_id: clerkUserId,
             email: userData.email,
+            full_name: userData.name,
             monthly_limit: 2500,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           }
         ])
         .select()
         .single();
 
       if (error) {
-        console.error("Error creating Supabase profile:", error);
-        // Don't fail the signup if Supabase fails
-        return null;
+        console.error("Error creating Supabase user:", error);
+        
+        // If user already exists, try to update
+        if (error.code === '23505') {
+          console.log("User already exists in Supabase, updating...");
+          const { data: existingUser } = await supabase
+            .from('users')
+            .select('*')
+            .eq('clerk_user_id', clerkUserId)
+            .single();
+          
+          if (existingUser) {
+            return existingUser;
+          }
+        }
+        
+        // Try a different approach - upsert
+        console.log("Trying upsert instead...");
+        const { data: upsertData, error: upsertError } = await supabase
+          .from('users')
+          .upsert({
+            clerk_user_id: clerkUserId,
+            email: userData.email,
+            full_name: userData.name,
+            monthly_limit: 2500,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'clerk_user_id'
+          })
+          .select()
+          .single();
+        
+        if (upsertError) {
+          console.error("Upsert also failed:", upsertError);
+          return null;
+        }
+        
+        return upsertData;
       }
 
-      console.log("Supabase profile created:", data);
+      console.log("Supabase user created successfully:", data);
       return data;
     } catch (error) {
-      console.error("Exception creating Supabase profile:", error);
+      console.error("Exception creating Supabase user:", error);
+      return null;
+    }
+  };
+
+  // Get or create Supabase user
+  const getOrCreateSupabaseUser = async (clerkUserId, userData) => {
+    try {
+      // First, check if user already exists
+      const { data: existingUser, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('clerk_user_id', clerkUserId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = not found
+        console.error("Error fetching user:", fetchError);
+      }
+
+      if (existingUser) {
+        console.log("User already exists in Supabase:", existingUser);
+        return existingUser;
+      }
+
+      // Create new user
+      return await createSupabaseUser(clerkUserId, userData);
+    } catch (error) {
+      console.error("Error in getOrCreateSupabaseUser:", error);
       return null;
     }
   };
@@ -174,10 +236,16 @@ export default function SignUpPage() {
           await setActive({ session: result.createdSessionId });
         }
         
-        // Create Supabase profile
-        await createSupabaseProfile(result.createdUserId, formData);
+        // Create/Get Supabase user
+        const supabaseUser = await getOrCreateSupabaseUser(result.createdUserId, formData);
         
-        setSuccessMessage("Account created successfully! Redirecting...");
+        if (supabaseUser) {
+          console.log("Supabase user synchronized successfully:", supabaseUser);
+          setSuccessMessage("Account created successfully! Database synced. Redirecting...");
+        } else {
+          console.warn("Supabase user creation failed, but Clerk signup was successful");
+          setSuccessMessage("Account created! Database sync pending. Redirecting...");
+        }
         
         // Redirect after a short delay
         setTimeout(() => {
@@ -278,10 +346,16 @@ export default function SignUpPage() {
           await setActive({ session: result.createdSessionId });
         }
         
-        // Create Supabase profile after verification
-        await createSupabaseProfile(result.createdUserId, formData);
+        // Create/Get Supabase user after verification
+        const supabaseUser = await getOrCreateSupabaseUser(result.createdUserId, formData);
         
-        setSuccessMessage("Email verified successfully! Redirecting...");
+        if (supabaseUser) {
+          console.log("Supabase user synchronized after verification:", supabaseUser);
+          setSuccessMessage("Email verified successfully! Database synced. Redirecting...");
+        } else {
+          console.warn("Supabase user creation failed, but verification was successful");
+          setSuccessMessage("Email verified! Database sync pending. Redirecting...");
+        }
         
         // Redirect after a short delay
         setTimeout(() => {
@@ -375,13 +449,8 @@ export default function SignUpPage() {
     });
   };
 
-  // Debug info (remove in production)
-  const showDebug = process.env.NODE_ENV === 'development';
-
   return (
     <div className="min-h-screen lg:h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black">
-      
-
       {/* Background elements */}
       <div className="absolute inset-0">
         <motion.div
@@ -414,7 +483,6 @@ export default function SignUpPage() {
                 <span className="text-xl font-bold bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent tracking-tight">
                   SpendSolo
                 </span>
-                
               </div>
             </div>
 
@@ -486,7 +554,6 @@ export default function SignUpPage() {
             <div className="hidden lg:block text-center mb-8">
               <div className="flex items-center justify-center gap-3 mb-6">
                 <div className="relative">
-                  
                   <div className="absolute -inset-2 bg-gradient-to-r from-emerald-500/40 to-teal-400/40 rounded-2xl blur-xl -z-10"></div>
                 </div>
               </div>
@@ -527,7 +594,7 @@ export default function SignUpPage() {
               </motion.div>
             )}
 
-            {/* Success Message */}
+            {/* Success Message with Database Status */}
             {successMessage && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -536,7 +603,15 @@ export default function SignUpPage() {
               >
                 <div className="flex items-center gap-2">
                   <Check className="w-4 h-4" />
-                  <span>{successMessage}</span>
+                  <div>
+                    <span>{successMessage}</span>
+                    {supabaseStatus && (
+                      <div className="text-xs text-emerald-400/70 mt-1 flex items-center gap-1">
+                        <Database className="w-3 h-3" />
+                        {supabaseStatus.replace("Supabase: ", "")}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -893,11 +968,6 @@ export default function SignUpPage() {
                     : "Join thousands who have taken control of their finances with our Clerk + Supabase powered platform."
                   }
                 </p>
-
-                {/* Tech stack info */}
-                <div className="flex items-center justify-center gap-4 mb-8">
-                  
-                </div>
 
                 {/* Stats */}
                 {!showVerification && (
