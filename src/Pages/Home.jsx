@@ -1,8 +1,8 @@
 import Navbar from "../Components/Navbar";
 import Hero from "../Components/Hero";
-import Features from "../components/Features";
-import Pricing from "../components/Pricing";
-import Reviews from "../components/Reviews";
+import Features from "../Components/Features";
+import Pricing from "../Components/Pricing";
+import Reviews from "../Components/Reviews";
 import Footer from "../Components/Footer";
 
 
